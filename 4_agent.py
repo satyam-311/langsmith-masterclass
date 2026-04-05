@@ -1,12 +1,13 @@
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.tools import tool
 import requests
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain import hub
+from langchain.agents import create_agent
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
+os.environ["LANGCHAIN_PROJECT"]="React Agent"
 
 search_tool = DuckDuckGoSearchRun()
 
@@ -15,30 +16,28 @@ def get_weather_data(city: str) -> str:
   """
   This function fetches the current weather data for a given city
   """
-  url = f'https://api.weatherstack.com/current?access_key=f07d9636974c4120025fadf60678771b&query={city}'
+  weatherstack_api_key = os.getenv("WEATHERSTACK_API_KEY")
+  if not weatherstack_api_key:
+    return "WEATHERSTACK_API_KEY is not set."
+
+  url = f'https://api.weatherstack.com/current?access_key={weatherstack_api_key}&query={city}'
 
   response = requests.get(url)
 
-  return response.json()
+  return str(response.json())
 
-llm = ChatOpenAI()
-
-# Step 2: Pull the ReAct prompt from LangChain Hub
-prompt = hub.pull("hwchase17/react")  # pulls the standard ReAct agent prompt
-
-# Step 3: Create the ReAct agent manually with the pulled prompt
-agent = create_react_agent(
-    llm=llm,
-    tools=[search_tool, get_weather_data],
-    prompt=prompt
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.7
 )
 
-# Step 4: Wrap it with AgentExecutor
-agent_executor = AgentExecutor(
-    agent=agent,
+# Step 2: Create the agent
+agent = create_agent(
+    model=llm,
     tools=[search_tool, get_weather_data],
-    verbose=True,
-    max_iterations=5
+    system_prompt=(
+        "You are a helpful assistant that can use search and weather tools."
+    )
 )
 
 # What is the release date of Dhadak 2?
@@ -46,7 +45,9 @@ agent_executor = AgentExecutor(
 # Identify the birthplace city of Kalpana Chawla (search) and give its current temperature.
 
 # Step 5: Invoke
-response = agent_executor.invoke({"input": "What is the current temp of gurgaon"})
+response = agent.invoke(
+    {"messages": [{"role": "user", "content": "Identify the birthplace city of Kalpana Chawla (search) and give its current temperature."}]}
+)
 print(response)
 
-print(response['output'])
+print(response["messages"][-1].content)

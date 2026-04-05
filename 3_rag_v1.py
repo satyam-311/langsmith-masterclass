@@ -3,28 +3,38 @@
 import os
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_groq import ChatGroq
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
-load_dotenv()  # expects OPENAI_API_KEY in .env
+load_dotenv()  
+os.environ.setdefault("LANGSMITH_TRACING", "true")
+os.environ.setdefault("LANGSMITH_PROJECT", "RAG Chatbot")
 
-PDF_PATH = "islr.pdf"  # <-- change to your PDF filename
+PDF_PATH = "fake news detection.pdf"  # <-- change to your PDF filename
 
 # 1) Load PDF
 loader = PyPDFLoader(PDF_PATH)
 docs = loader.load()  # one Document per page
 
 # 2) Chunk
-splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=100)
 splits = splitter.split_documents(docs)
 
 # 3) Embed + index
-emb = OpenAIEmbeddings(model="text-embedding-3-small")
+emb = HuggingFaceBgeEmbeddings(
+    model_name="BAAI/bge-base-en-v1.5",
+    model_kwargs={"device": "cpu"},
+    encode_kwargs={"normalize_embeddings": True, "batch_size": 32},
+    show_progress=True
+)
+print(f"Building FAISS index from {len(splits)} chunks on CPU. This can take a while on first run...")
 vs = FAISS.from_documents(splits, emb)
+print("FAISS index ready.")
 retriever = vs.as_retriever(search_type="similarity", search_kwargs={"k": 4})
 
 # 4) Prompt
@@ -34,7 +44,10 @@ prompt = ChatPromptTemplate.from_messages([
 ])
 
 # 5) Chain
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.7
+)
 def format_docs(docs): return "\n\n".join(d.page_content for d in docs)
 
 parallel = RunnableParallel({

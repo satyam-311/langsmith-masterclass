@@ -49,7 +49,7 @@ multidict==6.6.4
 mypy_extensions==1.1.0
 narwhals==2.1.0
 numpy==2.3.2
-openai==1.99.8
+langchain-groq
 orjson==3.11.1
 ormsgpack==1.10.0
 packaging==25.0

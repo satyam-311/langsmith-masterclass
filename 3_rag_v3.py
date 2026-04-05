@@ -6,16 +6,19 @@ from dotenv import load_dotenv
 from langsmith import traceable
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_groq import ChatGroq
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
+from langchain_cohere import CohereEmbeddings
 
 load_dotenv()
 
-PDF_PATH = "islr.pdf"  # <- change to your file
+PDF_PATH = "fake news detection.pdf"  # <- change to your file
+os.environ.setdefault("LANGSMITH_TRACING", "true")
+os.environ.setdefault("LANGSMITH_PROJECT", "RAG Chatbot2")
 
 # ----------------- helpers (not traced individually) -----------------
 @traceable(name="load_pdf")
@@ -32,7 +35,10 @@ def split_documents(docs, chunk_size=1000, chunk_overlap=150):
 
 @traceable(name="build_vectorstore")
 def build_vectorstore(splits):
-    emb = OpenAIEmbeddings(model="text-embedding-3-small")
+    emb = CohereEmbeddings(
+    model="embed-english-v3.0",
+    cohere_api_key=os.getenv("COHERE_API_KEY")
+    )
     return FAISS.from_documents(splits, emb)
 
 # ----------------- parent setup function (traced) -----------------
@@ -45,7 +51,10 @@ def setup_pipeline(pdf_path: str, chunk_size=1000, chunk_overlap=150):
     return vs
 
 # ----------------- model, prompt, and run -----------------
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.7
+)
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "Answer ONLY from the provided context. If not found, say you don't know."),

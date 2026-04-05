@@ -1,4 +1,4 @@
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -15,11 +15,19 @@ prompt2 = PromptTemplate(
     input_variables=['text']
 )
 
-model = ChatOpenAI()
+llm1 = ChatGroq(
+    model="llama-3.1-8b-instant",
+    temperature=0.7
+)
+
+llm2 = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.5
+)
 
 parser = StrOutputParser()
 
-chain = prompt1 | model | parser | prompt2 | model | parser
+chain = prompt1 | llm1 | parser | prompt2 | llm2 | parser
 
 result = chain.invoke({'topic': 'Unemployment in India'})
 
